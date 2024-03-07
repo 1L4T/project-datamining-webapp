@@ -24,7 +24,7 @@ with col1:
         st.dataframe(data)
         txt1 = st.text_area("Your DATA", "To generate plots, your CSV file must contain a column named 'Cluster'. Without this column, our system won't be able to generate visualizations.")
 
-        st.subheader("Pie Chart Grouped by Cluster", divider='blue')
+        st.subheader("Pie Charts Grouped by Cluster", divider='blue')
         if 'Cluster' in data.columns:
             binary_columns = []
             for col_name in data.columns:
@@ -39,25 +39,28 @@ with col1:
                     available_columns += list(binary_columns)
                 if not string_columns.empty:
                     available_columns += list(string_columns)
-                selected_column = st.selectbox("Select Column for Pie Chart", available_columns, key=f"pie_chart")
+                selected_column = st.selectbox("Select Column for Pie Charts Grouped by Cluster", available_columns, key=f"pie_chart_grouped")
                 if selected_column:
                     if selected_column in binary_columns:
-                        pie_data = data[selected_column].value_counts()
-                        fig_pie = px.pie(names=pie_data.index, values=pie_data.values, title=f'Pie Chart for {selected_column}',
-                                         color=pie_data.index, color_discrete_map={True: 'blue', False: 'green'})
-                        fig_pie.update_layout(autosize=True)
-                        fig_pie.update_traces(textposition='inside', textinfo='percent+label')  
-                        st.plotly_chart(fig_pie)
+                        pie_data = data.groupby('Cluster')[selected_column].value_counts().unstack(fill_value=0)
+                        for col in pie_data.columns:
+                            fig_pie = px.pie(names=pie_data.index, values=pie_data[col], title=f'Pie Chart for {selected_column} Grouped by Cluster ({col})',
+                                             color=pie_data.index, color_discrete_map={'C1': 'blue', 'C2': 'green', 'C3': 'red', 'C4': 'orange', 'C5': 'purple'})
+                            fig_pie.update_layout(autosize=True)
+                            fig_pie.update_traces(textposition='inside', textinfo='percent+label')  
+                            st.plotly_chart(fig_pie)
+                            st.write(f"Cluster {col} - {selected_column}")
+                            st.dataframe(pie_data[[col]])
                     else:
-                        cluster_pie_data = data[selected_column].value_counts()
-                        fig_cluster_pie = px.pie(names=cluster_pie_data.index, values=cluster_pie_data.values, title=f'Pie Chart for {selected_column}',
-                                                 color=cluster_pie_data.index, color_discrete_map={'C1': 'blue', 'C2': 'green', 'C3': 'red', 'C4': 'orange', 'C5': 'purple'})
-                        fig_cluster_pie.update_layout(autosize=True)
-                        fig_cluster_pie.update_traces(textposition='inside', textinfo='percent+label')  
-                        st.plotly_chart(fig_cluster_pie)
-                        
-                        with st.expander("View Data for Pie Chart"):
-                            st.dataframe(cluster_pie_data.rename_axis('Cluster').reset_index(name='Count'))
+                        cluster_grouped_data = data.groupby('Cluster')[selected_column].value_counts().unstack(fill_value=0)
+                        for col in cluster_grouped_data.columns:
+                            fig_cluster_pie = px.pie(names=cluster_grouped_data.index, values=cluster_grouped_data[col], title=f'Pie Chart for {selected_column} Grouped by Cluster ({col})',
+                                                     color=cluster_grouped_data.index, color_discrete_map={True: 'blue', False: 'green'})
+                            fig_cluster_pie.update_layout(autosize=True)
+                            fig_cluster_pie.update_traces(textposition='inside', textinfo='percent+label')  
+                            st.plotly_chart(fig_cluster_pie)
+                            st.write(f"Cluster {col} - {selected_column}")
+                            st.dataframe(cluster_grouped_data[[col]])
         else:
             st.warning("Cluster column not found in the uploaded CSV file.")
 
@@ -79,6 +82,7 @@ with col1:
                     st.dataframe(aggregated_data)
         else:
             st.warning("Cluster column not found in the uploaded CSV file.")
+
 
 
 with col2:
@@ -118,7 +122,7 @@ with col2:
                 selected_column = st.selectbox("Select Column for Bar Chart", available_columns, key="bar_chart_column")
                 if selected_column:
                     if selected_column in binary_columns:
-                        bar_data = data.groupby('Cluster')[selected_column].sum().reset_index()  # Count occurrences for binary data
+                        bar_data = data.groupby('Cluster')[selected_column].value_counts().unstack(fill_value=0).reset_index()
                     else:
                         bar_data = data.groupby('Cluster')[selected_column].value_counts().unstack().fillna(0).reset_index()
                     fig_bar = px.bar(bar_data, x='Cluster', y=bar_data.columns[1:], barmode='group')
@@ -132,7 +136,6 @@ with col2:
             st.warning("Cluster column not found in the uploaded CSV file.")
 
         txt2 = st.text_area("Customer Behavior Analysis", "This dashboard provides insights into customer behavior based on segmentation. Explore various visualizations to understand customer clusters and their characteristics.")
-
 
 if data is not None:
         try:
