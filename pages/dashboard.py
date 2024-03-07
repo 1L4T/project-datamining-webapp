@@ -19,47 +19,68 @@ if input_csv is not None:
         data = pd.read_csv(input_csv)
 
 col1, col2 = st.columns([1, 1])
-
 with col1:
-        if data is not None:
-            st.info("CSV Uploaded successfully")
-            st.dataframe(data)
-            txt1 = st.text_area("Your DATA", "To generate plots, your CSV file must contain a column named 'Cluster'. Without this column, our system won't be able to generate visualizations.")
+    if data is not None:
+        st.info("CSV Uploaded successfully")
+        st.dataframe(data)
+        txt1 = st.text_area("Your DATA", "To generate plots, your CSV file must contain a column named 'Cluster'. Without this column, our system won't be able to generate visualizations.")
 
-            st.subheader("Pie Chart Grouped by Cluster", divider='blue')
-            if 'Cluster' in data.columns:
-                cluster_pie_data = data['Cluster'].value_counts()
-                fig_cluster_pie = px.pie(names=cluster_pie_data.index, values=cluster_pie_data.values, color=cluster_pie_data.index,
-                                        color_discrete_map={'C1': 'blue', 'C2': 'green', 'C3': 'red', 'C4': 'orange', 'C5': 'purple'})
-                fig_cluster_pie.update_layout(autosize=True)
-                fig_cluster_pie.update_traces(textposition='inside', textinfo='percent+label')  
-                st.plotly_chart(fig_cluster_pie)
+        st.subheader("Pie Chart Grouped by Cluster", divider='blue')
+        if 'Cluster' in data.columns:
+            binary_columns = []
+            for col_name in data.columns:
+                if data[col_name].isin([0, 1]).all():  
+                    binary_columns.append(col_name)
+            string_columns = data.select_dtypes(include=['object']).columns
+            if not binary_columns and string_columns.empty:
+                st.warning("No binary or string columns found in the uploaded data.")
+            else:
+                available_columns = []
+                if binary_columns:
+                    available_columns += list(binary_columns)
+                if not string_columns.empty:
+                    available_columns += list(string_columns)
+                selected_column = st.selectbox("Select Column for Pie Chart", available_columns, key=f"pie_chart")
+                if selected_column:
+                    if selected_column in binary_columns:
+                        pie_data = data[selected_column].value_counts()
+                        fig_pie = px.pie(names=pie_data.index, values=pie_data.values, title=f'Pie Chart for {selected_column}',
+                                         color=pie_data.index, color_discrete_map={True: 'blue', False: 'green'})
+                        fig_pie.update_layout(autosize=True)
+                        fig_pie.update_traces(textposition='inside', textinfo='percent+label')  
+                        st.plotly_chart(fig_pie)
+                    else:
+                        cluster_pie_data = data[selected_column].value_counts()
+                        fig_cluster_pie = px.pie(names=cluster_pie_data.index, values=cluster_pie_data.values, title=f'Pie Chart for {selected_column}',
+                                                 color=cluster_pie_data.index, color_discrete_map={'C1': 'blue', 'C2': 'green', 'C3': 'red', 'C4': 'orange', 'C5': 'purple'})
+                        fig_cluster_pie.update_layout(autosize=True)
+                        fig_cluster_pie.update_traces(textposition='inside', textinfo='percent+label')  
+                        st.plotly_chart(fig_cluster_pie)
+                        
+                        with st.expander("View Data for Pie Chart"):
+                            st.dataframe(cluster_pie_data.rename_axis('Cluster').reset_index(name='Count'))
+        else:
+            st.warning("Cluster column not found in the uploaded CSV file.")
+
+        if 'Cluster' in data.columns:
+            agg_column = st.selectbox("Select Column to Aggregate", [col for col in data.columns if col != 'Cluster'])
+            if data[agg_column].dtype == 'object':
+                st.warning("Aggregation functions cannot be applied to non-numeric data.")
+            else:
+                agg_functions = ['mean', 'sum', 'std', 'min', 'max', 'count']
+                selected_functions = st.multiselect("Select Aggregation Functions", agg_functions, default=['mean', 'sum', 'std', 'count'])
                 
-                with st.expander("View Data for Pie Chart"):
-                    st.dataframe(cluster_pie_data.rename_axis('Cluster').reset_index(name='Count'))
+                aggregated_data = pd.DataFrame(index=data['Cluster'].unique())
+                for func in selected_functions:
+                    if func == 'count':
+                        aggregated_data[func.capitalize()] = data.groupby('Cluster')[agg_column].size().values
+                    else:
+                        aggregated_data[func.capitalize()] = data.groupby('Cluster')[agg_column].agg(func).values
+                with st.expander("View Data for Aggregated Column"):
+                    st.dataframe(aggregated_data)
+        else:
+            st.warning("Cluster column not found in the uploaded CSV file.")
 
-            else:
-                st.warning("Cluster column not found in the uploaded CSV file.")
-
-            if 'Cluster' in data.columns:
-                agg_column = st.selectbox("Select Column to Aggregate", [col for col in data.columns if col != 'Cluster'])
-                if data[agg_column].dtype == 'object':
-                    st.warning("Aggregation functions cannot be applied to non-numeric data.")
-                else:
-                    agg_functions = ['mean', 'sum', 'std', 'min', 'max', 'count']
-                    selected_functions = st.multiselect("Select Aggregation Functions", agg_functions, default=['mean', 'sum', 'std', 'count'])
-                    
-                    aggregated_data = pd.DataFrame(index=data['Cluster'].unique())
-                    for func in selected_functions:
-                        if func == 'count':
-                            aggregated_data[func.capitalize()] = data.groupby('Cluster')[agg_column].size().values
-                        else:
-                            aggregated_data[func.capitalize()] = data.groupby('Cluster')[agg_column].agg(func).values
-                    with st.expander("View Data for Aggregated Column"):
-                        st.dataframe(aggregated_data)
-
-            else:
-                st.warning("Cluster column not found in the uploaded CSV file.")
 
 with col2:
     if data is not None:
@@ -84,28 +105,35 @@ with col2:
 
         st.subheader("Bar Chart Grouped by Cluster", divider='blue')
         if 'Cluster' in data.columns:
-            y_variables = [col for col in data.columns if col != 'Cluster']
-            y_variable_bar = st.selectbox("Select Y-axis variable for Bar Chart", y_variables)
-            if data[y_variable_bar].dtype == 'object':
-                bar_data = data.groupby('Cluster')[y_variable_bar].value_counts().unstack().fillna(0).reset_index()
-                fig_bar = px.bar(bar_data, x='Cluster', y=bar_data.columns[1:], barmode='group')
-            elif data[y_variable_bar].nunique() == 2 and set(data[y_variable_bar].unique()) == {0, 1}:
-                bar_data = data.groupby('Cluster')[y_variable_bar].sum().reset_index()  # Count occurrences for binary data
-                fig_bar = px.bar(bar_data, x='Cluster', y=y_variable_bar)
+            binary_columns = []
+            string_columns = []
+            for col_name in data.columns:
+                if data[col_name].isin([0, 1]).all():  
+                    binary_columns.append(col_name)
+                elif data[col_name].dtype == 'object':
+                    string_columns.append(col_name)
+            if not binary_columns and not string_columns:
+                st.warning("No binary or string columns found in the uploaded data.")
             else:
-                bar_data = data.groupby('Cluster')[y_variable_bar].mean().reset_index()
-                fig_bar = px.bar(bar_data, x='Cluster', y=y_variable_bar)
-                
-            fig_bar.update_layout(autosize=True)
-            fig_bar.update_layout(xaxis=dict(title='Cluster', titlefont=dict(size=14), tickfont=dict(size=12)), barmode='group')  
-            st.plotly_chart(fig_bar)
-            
-            with st.expander("View Data for Bar Chart"):
-                st.dataframe(data[[y_variable_bar, 'Cluster']])
+                available_columns = binary_columns + string_columns
+                selected_column = st.selectbox("Select Column for Bar Chart", available_columns, key="bar_chart_column")
+                if selected_column:
+                    if selected_column in binary_columns:
+                        bar_data = data.groupby('Cluster')[selected_column].sum().reset_index()  # Count occurrences for binary data
+                    else:
+                        bar_data = data.groupby('Cluster')[selected_column].value_counts().unstack().fillna(0).reset_index()
+                    fig_bar = px.bar(bar_data, x='Cluster', y=bar_data.columns[1:], barmode='group')
+                    fig_bar.update_layout(autosize=True)
+                    fig_bar.update_layout(xaxis=dict(title='Cluster', titlefont=dict(size=14), tickfont=dict(size=12)), barmode='group')  
+                    st.plotly_chart(fig_bar)
+                    
+                    with st.expander("View Data for Bar Chart"):
+                        st.dataframe(bar_data)
         else:
             st.warning("Cluster column not found in the uploaded CSV file.")
 
         txt2 = st.text_area("Customer Behavior Analysis", "This dashboard provides insights into customer behavior based on segmentation. Explore various visualizations to understand customer clusters and their characteristics.")
+
 
 if data is not None:
         try:
@@ -139,38 +167,7 @@ if data is not None:
             else:
                 raise e
             
-col3, col4, col5, col6, col7 = st.columns(5)
 
-for col_index, col in enumerate([col3, col4, col5, col6, col7], start=3):
-    with col:
-        if data is not None:
-            binary_columns = []
-            for col_name in data.columns:
-                if data[col_name].isin([0, 1]).all():  
-                    binary_columns.append(col_name)
-            string_columns = data.select_dtypes(include=['object']).columns
-            if not binary_columns and string_columns.empty:
-                st.warning("No binary or string columns found in the uploaded data.")
-            else:
-                available_columns = []
-                if binary_columns:
-                    available_columns += list(binary_columns)
-                if not string_columns.empty:
-                    available_columns += list(string_columns)
-                selected_column = st.selectbox("Select Column for Pie Chart", available_columns, key=f"pie_chart_{col_index}")
-                if selected_column:
-                    if selected_column in binary_columns:
-                        pie_data = data[selected_column].value_counts()
-                        fig_pie = px.pie(names=pie_data.index, values=pie_data.values, title=selected_column,
-                                         color=pie_data.index, color_discrete_map={True: 'blue', False: 'green'})
-                        fig_pie.update_layout(autosize=True, width=300, height=300) 
-                        fig_pie.update_traces(textposition='inside', textinfo='percent+label')  
-                        st.plotly_chart(fig_pie)
-                    elif selected_column in string_columns:
-                        pie_data = data[selected_column].value_counts()
-                        fig_pie = px.pie(names=pie_data.index, values=pie_data.values, title=selected_column)
-                        fig_pie.update_layout(autosize=True, width=300, height=300)  
-                        fig_pie.update_traces(textposition='inside', textinfo='percent+label')  
-                        st.plotly_chart(fig_pie)
-                    else:
-                        st.warning("No binary or string columns found in the uploaded data.")
+
+
+            
