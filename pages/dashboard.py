@@ -27,22 +27,21 @@ with col1:
         st.subheader("Pie Charts Grouped by Cluster", divider='blue')
         if 'Cluster' in data.columns:
             binary_columns = []
+            string_columns = []
             for col_name in data.columns:
                 if data[col_name].isin([0, 1]).all():  
                     binary_columns.append(col_name)
-            string_columns = data.select_dtypes(include=['object']).columns
-            if not binary_columns and string_columns.empty:
+                elif data[col_name].dtype == 'object':
+                    string_columns.append(col_name)
+            if not binary_columns and not string_columns:
                 st.warning("No binary or string columns found in the uploaded data.")
             else:
-                available_columns = []
-                if binary_columns:
-                    available_columns += list(binary_columns)
-                if not string_columns.empty:
-                    available_columns += list(string_columns)
+                available_columns = binary_columns + string_columns
+                available_columns.remove('Cluster')  # Remove 'Cluster' from available columns
                 selected_column = st.selectbox("Select Column for Pie Charts Grouped by Cluster", available_columns, key=f"pie_chart_grouped")
                 if selected_column:
                     if selected_column in binary_columns:
-                        pie_data = data.groupby('Cluster')[selected_column].value_counts().unstack(fill_value=0)
+                        pie_data = data.groupby(['Cluster', selected_column]).size().unstack(fill_value=0)
                         for col in pie_data.columns:
                             fig_pie = px.pie(names=pie_data.index, values=pie_data[col], title=f'Pie Chart for {selected_column} Grouped by Cluster ({col})',
                                              color=pie_data.index, color_discrete_map={'C1': 'blue', 'C2': 'green', 'C3': 'red', 'C4': 'orange', 'C5': 'purple'})
@@ -52,7 +51,7 @@ with col1:
                             st.write(f"Cluster {col} - {selected_column}")
                             st.dataframe(pie_data[[col]])
                     else:
-                        cluster_grouped_data = data.groupby('Cluster')[selected_column].value_counts().unstack(fill_value=0)
+                        cluster_grouped_data = data.groupby(['Cluster', selected_column]).size().unstack(fill_value=0)
                         for col in cluster_grouped_data.columns:
                             fig_cluster_pie = px.pie(names=cluster_grouped_data.index, values=cluster_grouped_data[col], title=f'Pie Chart for {selected_column} Grouped by Cluster ({col})',
                                                      color=cluster_grouped_data.index, color_discrete_map={True: 'blue', False: 'green'})
@@ -82,8 +81,6 @@ with col1:
                     st.dataframe(aggregated_data)
         else:
             st.warning("Cluster column not found in the uploaded CSV file.")
-
-
 
 with col2:
     if data is not None:
@@ -135,8 +132,46 @@ with col2:
         else:
             st.warning("Cluster column not found in the uploaded CSV file.")
 
-        txt2 = st.text_area("Customer Behavior Analysis", "This dashboard provides insights into customer behavior based on segmentation. Explore various visualizations to understand customer clusters and their characteristics.")
+        
 
+        st.subheader("Proportion", divider='blue')
+        if 'Cluster' in data.columns:
+            binary_columns = []
+            for col_name in data.columns:
+                if data[col_name].isin([0, 1]).all():  
+                    binary_columns.append(col_name)
+            string_columns = data.select_dtypes(include=['object']).columns
+            if not binary_columns and string_columns.empty:
+                st.warning("No binary or string columns found in the uploaded data.")
+            else:
+                available_columns = []
+                if binary_columns:
+                    available_columns += list(binary_columns)
+                if not string_columns.empty:
+                    available_columns += list(string_columns)
+                selected_column = st.selectbox("Select Column for Pie Chart", available_columns, key=f"pie_chart")
+                if selected_column:
+                    if selected_column in binary_columns:
+                        pie_data = data[selected_column].value_counts()
+                        fig_pie = px.pie(names=pie_data.index, values=pie_data.values, title=f'Pie Chart for {selected_column}',
+                                         color=pie_data.index, color_discrete_map={True: 'blue', False: 'green'})
+                        fig_pie.update_layout(autosize=True)
+                        fig_pie.update_traces(textposition='inside', textinfo='percent+label')  
+                        st.plotly_chart(fig_pie)
+                    else:
+                        cluster_pie_data = data[selected_column].value_counts()
+                        fig_cluster_pie = px.pie(names=cluster_pie_data.index, values=cluster_pie_data.values, title=f'Pie Chart for {selected_column}',
+                                                 color=cluster_pie_data.index, color_discrete_map={'C1': 'blue', 'C2': 'green', 'C3': 'red', 'C4': 'orange', 'C5': 'purple'})
+                        fig_cluster_pie.update_layout(autosize=True)
+                        fig_cluster_pie.update_traces(textposition='inside', textinfo='percent+label')  
+                        st.plotly_chart(fig_cluster_pie)
+                        
+                        with st.expander("View Data for Pie Chart"):
+                            st.dataframe(cluster_pie_data.rename_axis('Cluster').reset_index(name='Count'))
+        else:
+            st.warning("Cluster column not found in the uploaded CSV file.")
+        txt2 = st.text_area("Customer Behavior Analysis", "This dashboard provides insights into customer behavior based on segmentation. Explore various visualizations to understand customer clusters and their characteristics.")
+        
 if data is not None:
         try:
             if 'Cluster' not in data.columns:
