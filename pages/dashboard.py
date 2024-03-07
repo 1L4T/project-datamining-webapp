@@ -1,18 +1,14 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-#import matplotlib.pyplot as plt
 from PIL import Image 
 
-st.set_page_config(page_title="Dashbord",
+st.set_page_config(page_title="Dashboard",
                     page_icon=":bar_chart:",
                     layout='wide')
 
 st.title(":chart_with_upwards_trend: CUSTOMER SEGMENTATION!!!")
-st.markdown('<style>div.block-container{padding-top:1rem;}<style>',unsafe_allow_html=True)
-#image = Image.open('../image/Customer-Segmentation.png')
-#resized_image = image.resize((4000, 500)) 
-#st.image(resized_image, caption='', output_format='JPEG')
+st.markdown('<style>div.block-container{padding-top:1rem;}<style>', unsafe_allow_html=True)
 st.markdown("👉👉👉 Welcome to our Customer Segmentation Dashboard! Upload your CSV file to explore insights and visualize customer segments. Let's uncover valuable insights together! 👈👈👈")
 
 input_csv = st.sidebar.file_uploader("Upload your CSV File", type=['csv'])
@@ -66,10 +62,12 @@ with col1:
                 st.warning("Cluster column not found in the uploaded CSV file.")
 
 with col2:
-        if data is not None:
-            st.subheader("Boxplot Grouped by Cluster", divider='blue')
-            if 'Cluster' in data.columns:
-                y_variables = [col for col in data.columns if col != 'Cluster']
+    if data is not None:
+        st.subheader("Boxplot Grouped by Cluster", divider='blue')
+        if 'Cluster' in data.columns:
+            numeric_columns = data.select_dtypes(include=['float64', 'int64']).columns
+            y_variables = [col for col in numeric_columns if col != 'Cluster']
+            if len(y_variables) > 0:
                 y_variable_box = st.selectbox("Select Y-axis variable for Boxplot", y_variables)
                 fig_box = px.box(data, x='Cluster', y=y_variable_box, color='Cluster',
                                 color_discrete_map={'C1': 'blue', 'C2': 'green', 'C3': 'red', 'C4': 'orange', 'C5': 'purple'})
@@ -79,29 +77,35 @@ with col2:
                 
                 with st.expander("View Data for Boxplot"):
                     st.dataframe(data[[y_variable_box, 'Cluster']])
-
             else:
-                st.warning("Cluster column not found in the uploaded CSV file.")
+                st.warning("No numeric columns found in the uploaded data. Please upload a CSV file with numeric columns.")
+        else:
+            st.warning("Cluster column not found in the uploaded CSV file.")
 
-            st.subheader("Bar Chart Grouped by Cluster", divider='blue')
-            if 'Cluster' in data.columns:
-                y_variable_bar = st.selectbox("Select Y-axis variable for Bar Chart", y_variables)
-                if data[y_variable_bar].dtype == 'object':
-                    bar_data = data.groupby('Cluster')[y_variable_bar].value_counts().unstack().fillna(0).reset_index()
-                    fig_bar = px.bar(bar_data, x='Cluster', y=bar_data.columns[1:], barmode='group')
-                else:
-                    bar_data = data.groupby('Cluster')[y_variable_bar].mean().reset_index()
-                    fig_bar = px.bar(bar_data, x='Cluster', y=y_variable_bar)
-                fig_bar.update_layout(autosize=True)
-                fig_bar.update_layout(xaxis=dict(title='Cluster', titlefont=dict(size=14), tickfont=dict(size=12)), barmode='group')  
-                st.plotly_chart(fig_bar)
+        st.subheader("Bar Chart Grouped by Cluster", divider='blue')
+        if 'Cluster' in data.columns:
+            y_variables = [col for col in data.columns if col != 'Cluster']
+            y_variable_bar = st.selectbox("Select Y-axis variable for Bar Chart", y_variables)
+            if data[y_variable_bar].dtype == 'object':
+                bar_data = data.groupby('Cluster')[y_variable_bar].value_counts().unstack().fillna(0).reset_index()
+                fig_bar = px.bar(bar_data, x='Cluster', y=bar_data.columns[1:], barmode='group')
+            elif data[y_variable_bar].nunique() == 2 and set(data[y_variable_bar].unique()) == {0, 1}:
+                bar_data = data.groupby('Cluster')[y_variable_bar].sum().reset_index()  # Count occurrences for binary data
+                fig_bar = px.bar(bar_data, x='Cluster', y=y_variable_bar)
+            else:
+                bar_data = data.groupby('Cluster')[y_variable_bar].mean().reset_index()
+                fig_bar = px.bar(bar_data, x='Cluster', y=y_variable_bar)
                 
-                with st.expander("View Data for Bar Chart"):
-                    st.dataframe(data[[y_variable_bar, 'Cluster']])
-            else:
-                st.warning("Cluster column not found in the uploaded CSV file.")
-            txt2 = st.text_area("Customer Behavior Analysis", "This dashboard provides insights into customer behavior based on segmentation. Explore various visualizations to understand customer clusters and their characteristics.")
+            fig_bar.update_layout(autosize=True)
+            fig_bar.update_layout(xaxis=dict(title='Cluster', titlefont=dict(size=14), tickfont=dict(size=12)), barmode='group')  
+            st.plotly_chart(fig_bar)
+            
+            with st.expander("View Data for Bar Chart"):
+                st.dataframe(data[[y_variable_bar, 'Cluster']])
+        else:
+            st.warning("Cluster column not found in the uploaded CSV file.")
 
+        txt2 = st.text_area("Customer Behavior Analysis", "This dashboard provides insights into customer behavior based on segmentation. Explore various visualizations to understand customer clusters and their characteristics.")
 
 if data is not None:
         try:
@@ -134,6 +138,39 @@ if data is not None:
                 st.warning("Duplicate column names found but ignored. Proceeding with the analysis.")
             else:
                 raise e
+            
+col3, col4, col5, col6, col7 = st.columns(5)
 
-
-
+for col_index, col in enumerate([col3, col4, col5, col6, col7], start=3):
+    with col:
+        if data is not None:
+            binary_columns = []
+            for col_name in data.columns:
+                if data[col_name].isin([0, 1]).all():  # Check if all values are 0 or 1
+                    binary_columns.append(col_name)
+            string_columns = data.select_dtypes(include=['object']).columns
+            if not binary_columns and string_columns.empty:
+                st.warning("No binary or string columns found in the uploaded data.")
+            else:
+                available_columns = []
+                if binary_columns:
+                    available_columns += list(binary_columns)
+                if not string_columns.empty:
+                    available_columns += list(string_columns)
+                selected_column = st.selectbox("Select Column for Pie Chart", available_columns, key=f"pie_chart_{col_index}")
+                if selected_column:
+                    if selected_column in binary_columns:
+                        pie_data = data[selected_column].value_counts()
+                        fig_pie = px.pie(names=pie_data.index, values=pie_data.values, title=selected_column,
+                                         color=pie_data.index, color_discrete_map={True: 'blue', False: 'green'})
+                        fig_pie.update_layout(autosize=True, width=300, height=300)  # Adjust width and height as desired
+                        fig_pie.update_traces(textposition='inside', textinfo='percent+label')  
+                        st.plotly_chart(fig_pie)
+                    elif selected_column in string_columns:
+                        pie_data = data[selected_column].value_counts()
+                        fig_pie = px.pie(names=pie_data.index, values=pie_data.values, title=selected_column)
+                        fig_pie.update_layout(autosize=True, width=300, height=300)  # Adjust width and height as desired
+                        fig_pie.update_traces(textposition='inside', textinfo='percent+label')  
+                        st.plotly_chart(fig_pie)
+                    else:
+                        st.warning("No binary or string columns found in the uploaded data.")
