@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-from PIL import Image 
 
 st.set_page_config(page_title="Dashboard",
                     page_icon=":bar_chart:",
